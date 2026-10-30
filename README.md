@@ -40,6 +40,8 @@ Pour activer les notifications, ajoute aussi `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_
 
 La connexion actuelle identifie un profil par son adresse e-mail, comme dans le code fourni ; l'adresse n'est pas vérifiée.
 
+Depuis **Profil > Supprimer mon compte**, tu peux supprimer ton profil après confirmation. Les likes, matchs, conversations, messages et abonnements aux notifications liés au compte sont supprimés automatiquement. La confirmation par e-mail évite une suppression accidentelle, mais ne vérifie pas l'identité : la connexion actuelle n'exige pas de mot de passe et ne vérifie pas l'adresse.
+
 ## Notifications sur téléphone
 
 Sur ordinateur et Android, connecte-toi puis va dans **Profil > Notifications sur ce téléphone > Activer les notifications** et accepte la demande. Sur iPhone/iPad, ajoute d'abord Rencontres à l'écran d'accueil depuis Safari, ouvre l'app depuis son icône, puis active les notifications depuis le profil.

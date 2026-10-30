@@ -398,3 +398,55 @@ body.chat-open .chat {
     transition: none;
   }
 }
+
+.delete-account {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px 18px;
+  margin-top: 24px;
+  padding: 20px 22px;
+  border: 1px solid #e8c9c4;
+  border-radius: 18px;
+  background: #fff9f7;
+}
+
+.delete-account h2 {
+  margin: 0;
+  color: #883d3b;
+  font: 600 19px Georgia, serif;
+}
+
+.delete-account p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.delete-account button {
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid #a93f3f;
+  border-radius: 11px;
+  background: white;
+  color: #963b3b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.delete-account button:hover {
+  background: #fff0ed;
+}
+
+.delete-account button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 600px) {
+  .delete-account {
+    grid-template-columns: 1fr;
+    padding: 17px;
+  }
+}
