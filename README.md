@@ -42,6 +42,6 @@ La connexion actuelle identifie un profil par son adresse e-mail, comme dans le 
 
 ## Notifications sur téléphone
 
-Sur ordinateur et Android, ouvre le site en HTTPS, connecte-toi puis va dans **Profil > Notifications sur ce téléphone > Activer les notifications** et accepte la demande du navigateur. Sur iPhone/iPad (iOS/iPadOS 16.4 ou ultérieur), ajoute d'abord le site à l'écran d'accueil depuis Safari, ouvre l'app installée, puis active les notifications depuis le profil.
+Sur ordinateur et Android, connecte-toi puis va dans **Profil > Notifications sur ce téléphone > Activer les notifications** et accepte la demande. Sur iPhone/iPad, ajoute d'abord Rencontres à l'écran d'accueil depuis Safari, ouvre l'app depuis son icône, puis active les notifications depuis le profil.
 
 Les notifications de message affichent le nom de la personne et un aperçu du message (500 caractères maximum). Un clic ouvre la conversation après connexion. Une notification est envoyée pour chaque nouveau like ; un clic ouvre l'onglet des likes reçus. Un match réciproque déclenche la notification de match habituelle. Pour tester les notifications en local, ouvre le site sur `http://localhost:8000` et configure les trois variables VAPID dans `.env`.

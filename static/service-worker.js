@@ -9,6 +9,7 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Rencontres";
   const options = {
     body: payload.body || "Tu as une nouvelle activité.",
+    lang: "fr",
     icon: "/static/icon.svg",
     badge: "/static/icon.svg",
     data: { url: payload.url || "/" },

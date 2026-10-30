@@ -84,6 +84,63 @@ body.chat-open .chat {
   scrollbar-gutter: stable;
 }
 
+#card-area .card > img {
+  object-fit: contain;
+  background: #eee7e1;
+}
+
+.card .photo-hit {
+  z-index: 1;
+  align-items: center;
+  pointer-events: none;
+}
+
+.card .photo-hit button {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: white;
+  pointer-events: auto;
+}
+
+.card .photo-hit button:last-of-type {
+  justify-content: flex-end;
+}
+
+.card .photo-hit button span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #ffffffa8;
+  border-radius: 50%;
+  background: #2416158c;
+  font-size: 32px;
+  line-height: 1;
+  text-shadow: 0 1px 5px #0008;
+}
+
+.card-photo-count {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  padding: 6px 11px;
+  border: 1px solid #ffffff80;
+  border-radius: 999px;
+  background: #241615a6;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  transform: translateX(-50%);
+}
+
+.chat-profile-gallery img {
+  object-fit: contain;
+}
+
 .chat-header .chat-person {
   flex: 1;
 }

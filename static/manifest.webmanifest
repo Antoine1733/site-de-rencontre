@@ -1,6 +1,7 @@
 {
   "name": "Rencontres",
   "short_name": "Rencontres",
+  "lang": "fr",
   "description": "Un site de rencontre",
   "start_url": "/",
   "scope": "/",
