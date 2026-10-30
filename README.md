@@ -4,7 +4,13 @@
 
 Dans Supabase, récupère l'URL PostgreSQL depuis **Project Settings > Database** et remplace le placeholder par le vrai mot de passe. Pour Render, utilise si besoin l'URL **Session pooler** fournie par Supabase.
 
-Aucune clé `anon` n'est utilisée. `init_db()` dans `app.py` crée les tables directement dans Supabase au démarrage.
+Aucune clé `anon` n'est utilisée. `init_db()` dans `app.py` crée les tables directement dans Supabase au démarrage local. Sur Vercel, initialise les tables une fois depuis ton ordinateur, après avoir configuré `DATABASE_URL` dans `.env` :
+
+```powershell
+python -c "from app import init_db; init_db()"
+```
+
+L'application Vercel ne se connecte pas à PostgreSQL pendant son import ; ses fonctions peuvent ainsi démarrer même si la base est momentanément indisponible.
 
 ## Lancer en local
 
@@ -24,7 +30,7 @@ Ouvre http://localhost:8000. Les profils, swipes, matchs, messages et photos son
 
 ## Déployer sur Vercel
 
-Importe le dépôt GitHub `Antoine1733/site-de-rencontre` dans Vercel. Le fichier `vercel.json` configure le point d'entrée Flask.
+Importe le dépôt GitHub `Antoine1733/site-de-rencontre` dans Vercel. Le fichier `vercel.json` configure le point d'entrée Flask. Avant la première utilisation, initialise les tables depuis ton ordinateur avec la commande de configuration ci-dessus.
 
 Dans **Project Settings > Environment Variables**, ajoute `DATABASE_URL` avec l'URI PostgreSQL Supabase (utilise l'URL Session Pooler si nécessaire) et `FLASK_SECRET_KEY` avec une valeur aléatoire longue. Ne pousse jamais `.env` sur GitHub. Après les avoir définies, redéploie le projet.
 
