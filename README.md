@@ -28,6 +28,14 @@ Importe le dépôt GitHub `Antoine1733/site-de-rencontre` dans Vercel. Le fichie
 
 Dans **Project Settings > Environment Variables**, ajoute `DATABASE_URL` avec l'URI PostgreSQL Supabase (utilise l'URL Session Pooler si nécessaire) et `FLASK_SECRET_KEY` avec une valeur aléatoire longue. Ne pousse jamais `.env` sur GitHub. Après les avoir définies, redéploie le projet.
 
+Pour activer les notifications, ajoute aussi `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` et `VAPID_SUBJECT` comme variables d'environnement sur Vercel, puis redéploie. Utilise la même paire de clés VAPID que dans ton `.env` local et ne partage ni ne publie jamais `VAPID_PRIVATE_KEY`.
+
 `api/index.py` expose l'application Flask à Vercel. `python app.py` reste la commande pour la lancer en local.
 
 La connexion actuelle identifie un profil par son adresse e-mail, comme dans le code fourni ; l'adresse n'est pas vérifiée.
+
+## Notifications sur téléphone
+
+Sur ordinateur et Android, ouvre le site en HTTPS, connecte-toi puis va dans **Profil > Notifications sur ce téléphone > Activer les notifications** et accepte la demande du navigateur. Sur iPhone/iPad (iOS/iPadOS 16.4 ou ultérieur), ajoute d'abord le site à l'écran d'accueil depuis Safari, ouvre l'app installée, puis active les notifications depuis le profil.
+
+Les notifications affichent le nom de la personne, mais jamais le contenu privé d'un message. Un clic sur la notification ouvre la conversation après connexion. Pour les tester en local, ouvre le site sur `http://localhost:8000` et configure les trois variables VAPID dans `.env`.
