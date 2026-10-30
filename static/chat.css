@@ -453,6 +453,10 @@ body.chat-open .chat {
   margin-top: 24px;
 }
 
+#profile-view > .delete-account {
+  margin-top: 24px;
+}
+
 .delete-account-overlay[hidden] {
   display: none;
 }
