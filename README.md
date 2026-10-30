@@ -4,11 +4,21 @@
 
 Dans Supabase, récupère l'URL PostgreSQL depuis **Project Settings > Database** et remplace le placeholder par le vrai mot de passe. Pour Render, utilise si besoin l'URL **Session pooler** fournie par Supabase.
 
+Les photos sont stockées dans un bucket Supabase Storage privé ; PostgreSQL ne conserve que leurs chemins. Configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (clé serveur secrète, jamais publiée) et `SUPABASE_STORAGE_BUCKET` dans `.env`. Pour Storage privé, utilise la clé JWT `service_role` de **Project Settings > API Keys > Legacy API Keys**, pas une clé `sb_secret_`. L'URL du projet est dans **Project Settings > API**, et le nom du bucket dans **Storage > Files**. Configure les mêmes variables dans Vercel. Ne rends pas le bucket public.
+
 Aucune clé `anon` n'est utilisée. `init_db()` dans `app.py` crée les tables directement dans Supabase au démarrage local. Sur Vercel, initialise les tables une fois depuis ton ordinateur, après avoir configuré `DATABASE_URL` dans `.env` :
 
 ```powershell
 python -c "from app import init_db; init_db()"
 ```
+
+Après avoir configuré Storage, migre les photos existantes une seule fois depuis ton ordinateur :
+
+```powershell
+python -c "from app import migrate_existing_photos; print(f'{migrate_existing_photos()} profils migrés')"
+```
+
+Les nouveaux profils et les nouvelles photos de profil sont ensuite envoyés automatiquement au bucket privé ; l'application génère des URLs signées temporaires pour les afficher.
 
 L'application Vercel ne se connecte pas à PostgreSQL pendant son import ; ses fonctions peuvent ainsi démarrer même si la base est momentanément indisponible.
 
@@ -26,7 +36,7 @@ Remplace les valeurs d'exemple dans `.env`, puis lance :
 python app.py
 ```
 
-Ouvre http://localhost:8000. Les profils, swipes, matchs, messages et photos sont stockés dans PostgreSQL Supabase.
+Ouvre http://localhost:8000. Les profils, swipes, matchs et messages sont stockés dans PostgreSQL Supabase ; les photos sont dans Supabase Storage.
 
 ## Déployer sur Vercel
 

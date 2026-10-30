@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
+from uuid import uuid4
 
 import psycopg2
 import psycopg2.extras
@@ -28,6 +30,9 @@ def load_env() -> None:
 
 load_env()
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_SECRET_KEY", ""))
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "")
@@ -195,7 +200,111 @@ def as_json(row):
             result[key] = value.isoformat()
         elif hasattr(value, "hex") and not isinstance(value, str):
             result[key] = str(value)
+    if "photo_paths" in result:
+        result["photo_paths"] = [signed_photo_url(path) for path in result["photo_paths"]]
     return result
+
+
+def storage_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_STORAGE_BUCKET)
+
+
+def storage_headers(content_type: str = "") -> dict[str, str]:
+    headers = {"apikey": SUPABASE_SERVICE_ROLE_KEY}
+    if not SUPABASE_SERVICE_ROLE_KEY.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {SUPABASE_SERVICE_ROLE_KEY}"
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def storage_object_url(object_path: str, action: str) -> str:
+    if not storage_configured():
+        raise RuntimeError("Configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY et SUPABASE_STORAGE_BUCKET.")
+    bucket = quote(SUPABASE_STORAGE_BUCKET, safe="")
+    path = quote(object_path, safe="/")
+    action_path = f"/{action}" if action else ""
+    return f"{SUPABASE_URL}/storage/v1/object{action_path}/{bucket}/{path}"
+
+
+def upload_photo(data_url: str, profile_id: str) -> str:
+    prefix = "data:image/jpeg;base64,"
+    if not isinstance(data_url, str) or not data_url.startswith(prefix):
+        raise ValueError("Format de photo invalide.")
+    try:
+        image = base64.b64decode(data_url[len(prefix):], validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("Photo JPEG invalide.") from error
+    if not image or len(image) > 8 * 1024 * 1024:
+        raise ValueError("Photo vide ou supérieure à 8 Mo.")
+    object_path = f"profiles/{profile_id}/{uuid4().hex}.jpg"
+    try:
+        response = requests.post(
+            storage_object_url(object_path, ""),
+            headers={**storage_headers("image/jpeg"), "x-upsert": "true"},
+            data=image,
+            timeout=20,
+        )
+        response.raise_for_status()
+    except requests.RequestException as error:
+        response = error.response
+        if response is not None:
+            app.logger.error("Supabase photo upload failed (HTTP %s): %s", response.status_code, response.text[:500])
+        else:
+            app.logger.exception("Supabase photo upload failed")
+        raise RuntimeError("Impossible d’envoyer la photo vers Supabase Storage.") from error
+    return object_path
+
+
+def signed_photo_url(object_path: str) -> str:
+    if object_path.startswith("data:image/"):
+        raise RuntimeError("Les anciennes photos doivent être migrées vers Supabase Storage.")
+    try:
+        response = requests.post(
+            storage_object_url(object_path, "sign"),
+            headers=storage_headers("application/json"),
+            json={"expiresIn": 3600},
+            timeout=10,
+        )
+        response.raise_for_status()
+        signed_url = response.json().get("signedURL")
+    except (requests.RequestException, ValueError) as error:
+        app.logger.exception("Supabase photo URL signing failed")
+        raise RuntimeError("Impossible de générer un lien temporaire pour une photo.") from error
+    if not isinstance(signed_url, str) or not signed_url:
+        raise RuntimeError("Supabase n’a pas renvoyé d’URL signée pour une photo.")
+    if signed_url.startswith("https://"):
+        return signed_url
+    return f"{SUPABASE_URL}/storage/v1/{signed_url.lstrip('/')}"
+
+
+def delete_photo(object_path: str) -> None:
+    response = requests.delete(
+        storage_object_url(object_path, ""),
+        headers=storage_headers(),
+        timeout=10,
+    )
+    response.raise_for_status()
+
+
+def migrate_existing_photos() -> int:
+    if not storage_configured():
+        raise RuntimeError("Configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY et SUPABASE_STORAGE_BUCKET.")
+    with get_db() as db:
+        profiles = db.execute("SELECT id,photo_paths FROM public.profiles").fetchall()
+    migrated = 0
+    for profile in profiles:
+        old_paths = profile["photo_paths"]
+        if not any(path.startswith("data:image/") for path in old_paths):
+            continue
+        new_paths = [
+            upload_photo(path, str(profile["id"])) if path.startswith("data:image/") else path
+            for path in old_paths
+        ]
+        with get_db() as db:
+            db.execute("UPDATE public.profiles SET photo_paths=%s WHERE id=%s", (new_paths, profile["id"]))
+        migrated += 1
+    return migrated
 
 
 def current_user():
@@ -308,7 +417,7 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!deleteDial
 $('#delete-account-confirmation').onsubmit=async event=>{event.preventDefault();const submit=$('#confirm-delete-account');submit.disabled=true;deleteError.hidden=true;try{await api('/api/account',{method:'DELETE',body:JSON.stringify({email:deleteEmail.value})})}catch(error){deleteError.textContent=error.message;deleteError.hidden=false;submit.disabled=false;return}try{const registration=navigator.serviceWorker?await navigator.serviceWorker.getRegistration('/'):null,subscription=registration?await registration.pushManager.getSubscription():null;if(subscription)await subscription.unsubscribe()}catch(error){console.error('Le compte est supprimé, mais le désabonnement des notifications a échoué.',error)}location.replace('/?account_deleted=1')};
 $('#edit-profile').onclick=()=>{const form=$('#edit-form'),opening=form.classList.contains('hide');form.classList.toggle('hide',!opening);$('#edit-profile').setAttribute('aria-expanded',String(opening));$('#edit-profile').textContent=opening?'Annuler la modification':'Modifier mon profil';if(opening)$('#edit-first-name').focus()};
 $('#cancel-edit').onclick=renderProfile;
-$('#edit-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,files=[...form.photos.files],submit=form.querySelector('[type="submit"]');if(files.length>3||files.some(file=>file.size>8*1024*1024)){note('Choisis au maximum 3 photos de 8 Mo chacune.');return}submit.disabled=true;submit.textContent='Enregistrement…';let updated;try{updated=await api('/api/profile',{method:'PUT',body:JSON.stringify({first_name:form.first_name.value.trim(),age:Number(form.age.value),bio:form.bio.value.trim(),photo_paths:files.length?await Promise.all(files.map(photoData)):p.photo_paths})})}catch(err){note(err.message);submit.disabled=false;submit.textContent='Enregistrer les modifications';return}s.user=updated;$('#account').textContent=updated.first_name;renderProfile();note('Profil mis à jour.');try{await loadProfiles()}catch(err){note(`Profil mis à jour, mais la liste des profils n’a pas pu être actualisée : ${err.message}`)}}
+$('#edit-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,files=[...form.photos.files],submit=form.querySelector('[type="submit"]');if(files.length>3||files.some(file=>file.size>8*1024*1024)){note('Choisis au maximum 3 photos de 8 Mo chacune.');return}submit.disabled=true;submit.textContent='Enregistrement…';let updated;try{const payload={first_name:form.first_name.value.trim(),age:Number(form.age.value),bio:form.bio.value.trim()};if(files.length)payload.photo_paths=await Promise.all(files.map(photoData));updated=await api('/api/profile',{method:'PUT',body:JSON.stringify(payload)})}catch(err){note(err.message);submit.disabled=false;submit.textContent='Enregistrer les modifications';return}s.user=updated;$('#account').textContent=updated.first_name;renderProfile();note('Profil mis à jour.');try{await loadProfiles()}catch(err){note(`Profil mis à jour, mais la liste des profils n’a pas pu être actualisée : ${err.message}`)}}
 }
 const signupForm=$('#signup-form'),authSwitch=document.createElement('div'),loginForm=document.createElement('form');authSwitch.className='auth-switch';authSwitch.innerHTML='<button type="button" data-mode="signup" class="active">Créer un compte</button><button type="button" data-mode="login">Se connecter</button>';loginForm.id='login-form';loginForm.className='hide';loginForm.innerHTML='<div class="field"><label>Adresse e-mail</label><input name="email" type="email" required></div><button class="primary">Se connecter</button>';signupForm.parentNode.insertBefore(authSwitch,signupForm);signupForm.parentNode.append(loginForm);
 function authMode(mode){const creating=mode==='signup';signupForm.classList.toggle('hide',!creating);loginForm.classList.toggle('hide',creating);$('.auth-main h1').textContent=creating?'Créer un profil':'Se connecter';$('.auth-main > p').textContent=creating?'Inscription réservée aux personnes de 18 ans et plus.':'Entre l’adresse e-mail de ton compte.';authSwitch.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.mode===mode))}
@@ -374,19 +483,27 @@ def create_account():
         return fail(ValueError("Adresse e-mail invalide."))
     if not isinstance(photos, list) or not 1 <= len(photos) <= 3 or any(not isinstance(p, str) or not p.startswith("data:image/jpeg;base64,") for p in photos):
         return fail(ValueError("Ajoute entre 1 et 3 photos valides."))
+    profile_id = str(uuid4())
+    uploaded_paths = []
     try:
+        uploaded_paths = [upload_photo(photo, profile_id) for photo in photos]
         with get_db() as db:
             row = db.execute("""
-                INSERT INTO public.profiles(email, first_name, age, bio, photo_paths)
-                VALUES(%s,%s,%s,%s,%s)
+                INSERT INTO public.profiles(id,email,first_name,age,bio,photo_paths)
+                VALUES(%s,%s,%s,%s,%s,%s)
                 RETURNING id,email,first_name,age,bio,photo_paths
-            """, (email, name, age, bio, photos)).fetchone()
+            """, (profile_id, email, name, age, bio, uploaded_paths)).fetchone()
         session.clear()
         session["email"] = email
         return jsonify(as_json(row))
     except psycopg2.errors.UniqueViolation:
+        for path in uploaded_paths:
+            try:
+                delete_photo(path)
+            except (RuntimeError, requests.RequestException):
+                app.logger.exception("Could not remove an orphaned uploaded photo")
         return fail(ValueError("Cette adresse a déjà un compte. Choisis l'onglet Se connecter."), 409)
-    except (RuntimeError, psycopg2.Error) as error:
+    except (RuntimeError, psycopg2.Error, requests.RequestException) as error:
         app.logger.exception("Profile save failed")
         return fail(error, 503)
 
@@ -402,13 +519,17 @@ def update_profile():
             age = int(data.get("age", 0))
         except (TypeError, ValueError):
             return fail(ValueError("Âge invalide."))
-        photo_paths = data.get("photo_paths", user["photo_paths"])
+        photos = data.get("photo_paths")
         if not 1 <= len(first_name) <= 40 or not 18 <= age <= 100 or not 1 <= len(bio) <= 500:
             return fail(ValueError("Vérifie le prénom, l'âge et la description."))
-        if not isinstance(photo_paths, list) or not 1 <= len(photo_paths) <= 3:
-            return fail(ValueError("Le profil doit avoir entre 1 et 3 photos."))
-        if any(not isinstance(photo, str) or not photo.startswith("data:image/jpeg;base64,") for photo in photo_paths):
-            return fail(ValueError("Format de photo invalide."))
+        if photos is not None and (
+            not isinstance(photos, list)
+            or not 1 <= len(photos) <= 3
+            or any(not isinstance(photo, str) or not photo.startswith("data:image/jpeg;base64,") for photo in photos)
+        ):
+            return fail(ValueError("Le profil doit avoir entre 1 et 3 photos JPEG valides."))
+        photo_paths = [upload_photo(photo, str(user["id"])) for photo in photos] if photos is not None else user["photo_paths"]
+        old_paths = user["photo_paths"]
         with get_db() as db:
             row = db.execute("""
                 UPDATE public.profiles SET first_name=%s, age=%s, bio=%s, photo_paths=%s
@@ -417,10 +538,16 @@ def update_profile():
             """, (first_name, age, bio, photo_paths, user["id"])).fetchone()
         if not row:
             return fail(ValueError("Profil introuvable."), 404)
+        if photos is not None:
+            for path in old_paths:
+                try:
+                    delete_photo(path)
+                except (RuntimeError, requests.RequestException):
+                    app.logger.exception("Could not remove a replaced profile photo")
         return jsonify(as_json(row))
     except PermissionError as error:
         return fail(error, 401)
-    except (RuntimeError, psycopg2.Error) as error:
+    except (RuntimeError, psycopg2.Error, requests.RequestException) as error:
         app.logger.exception("Profile update failed")
         return fail(error, 503)
 
@@ -462,6 +589,7 @@ def delete_account():
         confirmation = str(data.get("email", "")).strip().lower()
         if confirmation != user["email"].lower():
             return fail(ValueError("L’adresse e-mail ne correspond pas à ton compte."))
+        photo_paths = user["photo_paths"]
         with get_db() as db:
             deleted = db.execute(
                 "DELETE FROM public.profiles WHERE id=%s RETURNING id",
@@ -470,6 +598,11 @@ def delete_account():
         if not deleted:
             return fail(ValueError("Compte introuvable."), 404)
         session.clear()
+        for path in photo_paths:
+            try:
+                delete_photo(path)
+            except (RuntimeError, requests.RequestException):
+                app.logger.exception("Could not remove a deleted account photo")
         return jsonify({"ok": True})
     except PermissionError as error:
         return fail(error, 401)
