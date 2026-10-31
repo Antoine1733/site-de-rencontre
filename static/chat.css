@@ -809,20 +809,44 @@ body.matches-open #conversation {
   }
 }
 
-.view-spinner[hidden],
+.heading > .view-spinner[hidden],
 .signup-progress[hidden] {
   display: none;
 }
 
-.view-spinner {
+.heading > .view-spinner {
   display: inline-block;
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
   margin-left: 12px;
+  padding: 0;
+  background: transparent;
   border: 2px solid #eadbd2;
   border-top-color: var(--rose);
   border-radius: 50%;
+  animation: conversation-spin .8s linear infinite;
+}
+
+#card-area {
+  position: relative;
+}
+
+#card-area.is-loading::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid #eadbd2;
+  border-top-color: var(--rose);
+  border-radius: 50%;
+  background: #fffdfa;
+  box-shadow: 0 0 0 8px #fffdfa;
+  pointer-events: none;
   animation: conversation-spin .8s linear infinite;
 }
 
@@ -870,5 +894,6 @@ body.matches-open #conversation {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .view-spinner { animation: none; }
+  .heading > .view-spinner,
+  #card-area.is-loading::after { animation: none; }
 }
