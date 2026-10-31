@@ -809,23 +809,8 @@ body.matches-open #conversation {
   }
 }
 
-.heading > .view-spinner[hidden],
 .signup-progress[hidden] {
   display: none;
-}
-
-.heading > .view-spinner {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  margin-left: 12px;
-  padding: 0;
-  background: transparent;
-  border: 2px solid #eadbd2;
-  border-top-color: var(--rose);
-  border-radius: 50%;
-  animation: conversation-spin .8s linear infinite;
 }
 
 #card-area {
@@ -894,6 +879,5 @@ body.matches-open #conversation {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .heading > .view-spinner,
   #card-area.is-loading::after { animation: none; }
 }
