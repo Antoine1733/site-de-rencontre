@@ -7,6 +7,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
@@ -45,7 +46,14 @@ SIGNED_PHOTO_URL_CACHE_LOCK = threading.Lock()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-only-change-this")
 app.config.update(MAX_CONTENT_LENGTH=10 * 1024 * 1024, SESSION_COOKIE_HTTPONLY=True,
+                  PERMANENT_SESSION_LIFETIME=timedelta(days=30), SESSION_REFRESH_EACH_REQUEST=True,
                   SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_SECURE=(os.getenv("APP_ENV") == "production" or os.getenv("VERCEL") == "1"))
+
+
+@app.before_request
+def persist_existing_login():
+    if session.get("email") and not session.permanent:
+        session.permanent = True
 
 
 class PgConnection:
@@ -564,6 +572,7 @@ def create_account():
             """, (profile_id, email, name, age, bio, uploaded_paths)).fetchone()
         session.clear()
         session["email"] = email
+        session.permanent = True
         return jsonify(as_json(row))
     except psycopg2.errors.UniqueViolation:
         for path in uploaded_paths:
@@ -636,6 +645,7 @@ def login():
             return fail(ValueError("Aucun compte avec cette adresse. Crée un profil."), 404)
         session.clear()
         session["email"] = email
+        session.permanent = True
         return jsonify(as_json(row))
     except (RuntimeError, psycopg2.Error) as error:
         app.logger.exception("Login failed")
