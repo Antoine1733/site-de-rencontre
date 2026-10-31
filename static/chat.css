@@ -808,3 +808,73 @@ body.matches-open #conversation {
     flex-direction: column-reverse;
   }
 }
+
+.global-loading[hidden],
+.signup-progress[hidden] {
+  display: none;
+}
+
+.global-loading {
+  position: fixed;
+  z-index: 1200;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  display: grid;
+  width: min(280px, calc(100% - 32px));
+  gap: 7px;
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 8px 26px #39241a20;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.global-loading-track,
+.signup-progress-track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eadfd9;
+}
+
+.global-loading-track > span,
+.signup-progress-track > span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rose);
+  animation: loading-bar-slide 1.1s ease-in-out infinite;
+}
+
+.signup-progress {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@keyframes loading-bar-slide {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-loading-track > span,
+  .signup-progress-track > span {
+    width: 100%;
+    animation: none;
+  }
+}
