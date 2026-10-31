@@ -516,15 +516,82 @@ body.discover-open .hint {
   margin: 8px 0 0;
 }
 
+body.matches-open {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.matches-open main.shell {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.matches-open .top {
+  flex: none;
+}
+
+body.matches-open #app-view.content {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 12px 0;
+}
+
+body.matches-open .tabs {
+  position: static;
+  inset: auto;
+  width: 100%;
+  flex: none;
+  margin: 0 auto 12px;
+}
+
+body.matches-open #messages-view {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 0;
+}
+
+body.matches-open #messages-view > .heading {
+  flex: none;
+}
+
+body.matches-open #messages-view > .matches {
+  min-height: 0;
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fffdfa9c;
+  padding: 12px;
+}
+
+body.matches-open #conversation {
+  display: none;
+}
+
 @media (max-width: 600px) {
   body.discover-open #app-view.content {
-    padding: 8px 0 76px;
+    padding: 8px 0;
   }
 
   body.discover-open .tabs {
-    position: fixed;
-    inset: auto 0 0;
-    margin: 0;
+    position: static;
+    inset: auto;
+    width: 100%;
+    margin: 0 0 8px;
   }
 
   body.discover-open #discover-view > .heading {
@@ -551,6 +618,18 @@ body.discover-open .hint {
 
   body.discover-open .hint {
     margin-top: 4px;
+  }
+
+  body.matches-open #app-view.content {
+    padding: 8px 0;
+  }
+
+  body.matches-open .tabs {
+    margin-bottom: 8px;
+  }
+
+  body.matches-open #messages-view > .heading {
+    margin-bottom: 12px;
   }
 }
 
