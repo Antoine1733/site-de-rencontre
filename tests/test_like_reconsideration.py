@@ -75,27 +75,38 @@ class LikeReconsiderationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         return [row['id'] for row in response.get_json()]
 
-    def test_pass_then_incoming_like_then_reconsider_creates_one_match(self):
+    def test_passed_profile_stays_hidden_when_it_likes_me_later(self):
         self.assertIsNone(self.swipe('bob', False))
         self.actor = 'bob'
         self.assertIn('alice', self.ids('/api/profiles'))
         self.assertIsNone(self.swipe('alice', True))
         self.actor = 'alice'
+        self.assertEqual(self.ids('/api/likes'), [])
+        self.assertNotIn('bob', self.ids('/api/profiles'))
+
+    def test_passing_incoming_like_removes_it_persistently(self):
+        self.actor = 'bob'
+        self.swipe('alice', True)
+        self.actor = 'alice'
         self.assertEqual(self.ids('/api/likes'), ['bob'])
         self.assertIsNone(self.swipe('bob', False))
-        self.assertEqual(self.ids('/api/likes'), ['bob'])
-        match = self.swipe('bob', True)
-        self.assertIsNotNone(match)
+        for _ in range(2):
+            self.assertEqual(self.ids('/api/likes'), [])
+            self.assertNotIn('bob', self.ids('/api/profiles'))
+        self.assertIsNone(self.swipe('bob', False))
         self.assertEqual(self.ids('/api/likes'), [])
-        self.assertEqual(self.swipe('bob', True), match)
-        self.assertEqual(len(self.db.execute('SELECT * FROM matches').fetchall()), 1)
+        self.assertEqual(self.db.execute('SELECT * FROM matches').fetchall(), [])
 
     def test_incoming_like_without_prior_swipe_can_be_accepted(self):
         self.actor = 'bob'
         self.swipe('alice', True)
         self.actor = 'alice'
         self.assertEqual(self.ids('/api/likes'), ['bob'])
-        self.assertIsNotNone(self.swipe('bob', True))
+        match = self.swipe('bob', True)
+        self.assertIsNotNone(match)
+        self.assertEqual(self.ids('/api/likes'), [])
+        self.assertEqual(self.swipe('bob', True), match)
+        self.assertEqual(len(self.db.execute('SELECT * FROM matches').fetchall()), 1)
 
     def test_pass_alone_is_not_an_incoming_like(self):
         self.actor = 'bob'
