@@ -12,13 +12,15 @@ Aucune clé `anon` n'est utilisée. `init_db()` dans `app.py` crée les tables d
 python -c "from app import init_db; init_db()"
 ```
 
+Pour appliquer les nouveaux index à une base déjà initialisée, relance cette commande une fois.
+
 Après avoir configuré Storage, migre les photos existantes une seule fois depuis ton ordinateur :
 
 ```powershell
 python -c "from app import migrate_existing_photos; print(f'{migrate_existing_photos()} profils migrés')"
 ```
 
-Les nouveaux profils et les nouvelles photos de profil sont ensuite envoyés automatiquement au bucket privé ; l'application génère des URLs signées temporaires pour les afficher.
+Les nouveaux profils et les nouvelles photos de profil sont ensuite envoyés automatiquement au bucket privé ; l'application génère des URLs signées temporaires pour les afficher. Pour accélérer le chargement, ces liens sont réutilisés pendant 50 minutes et les liens des photos d'une liste sont générés en parallèle. Les photos restent dans le bucket privé.
 
 L'application Vercel ne se connecte pas à PostgreSQL pendant son import ; ses fonctions peuvent ainsi démarrer même si la base est momentanément indisponible.
 

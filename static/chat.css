@@ -2,12 +2,6 @@ body.chat-open {
   overflow: hidden;
 }
 
-body:not(.chat-open) #messages-view > .matches {
-  max-height: max(190px, calc(100dvh - 160px));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 body.chat-open main.shell {
   display: flex;
   width: 100%;
@@ -437,6 +431,21 @@ body.chat-open .chat {
 
 .delete-account button:hover {
   background: #fff0ed;
+}
+
+.chat-date-separator {
+  align-self: center;
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chat-date-separator span {
+  display: block;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #f1ece7;
 }
 
 .delete-account button:disabled {
