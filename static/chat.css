@@ -522,6 +522,76 @@ body.chat-open .chat {
   background: #f1ece7;
 }
 
+/* Keep the navigation frame stable across all four main tabs. */
+body.app-open:not(.chat-open) {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.app-open:not(.chat-open) main.shell {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.app-open:not(.chat-open) .top {
+  flex: none;
+}
+
+body.app-open:not(.chat-open) #app-view.content {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 12px 0;
+}
+
+body.app-open:not(.chat-open) .tabs {
+  position: static;
+  inset: auto;
+  width: 100%;
+  flex: none;
+  margin: 0 0 12px;
+}
+
+body.app-open:not(.chat-open) .tab {
+  flex: 1;
+  min-width: 0;
+}
+
+body.app-open:not(.chat-open) #likes-view,
+body.app-open:not(.chat-open) #profile-view {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+body.app-open:not(.chat-open) #app-view > div > .heading {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 600px) {
+  body.app-open:not(.chat-open) #app-view.content {
+    padding: 8px 0;
+  }
+
+  body.app-open:not(.chat-open) .tabs {
+    margin-bottom: 8px;
+  }
+
+  body.app-open:not(.chat-open) #app-view > div > .heading h1 {
+    font-size: 27px;
+  }
+}
+
 body.discover-open {
   height: 100dvh;
   overflow: hidden;
