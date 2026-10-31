@@ -448,6 +448,112 @@ body.chat-open .chat {
   background: #f1ece7;
 }
 
+body.discover-open {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.discover-open main.shell {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.discover-open .top {
+  flex: none;
+}
+
+body.discover-open #app-view.content {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: 12px 0;
+}
+
+body.discover-open .tabs {
+  flex: none;
+  margin: 0 auto 12px;
+}
+
+body.discover-open #discover-view {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+body.discover-open #discover-view > .heading {
+  flex: none;
+  margin-bottom: 12px;
+}
+
+body.discover-open #card-area {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  justify-content: center;
+}
+
+body.discover-open #card-area > .card {
+  width: min(100%, 570px);
+  height: 100%;
+  min-height: 0;
+  max-height: 640px;
+}
+
+body.discover-open #actions {
+  flex: none;
+  margin: 12px auto 0;
+}
+
+body.discover-open .hint {
+  flex: none;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 600px) {
+  body.discover-open #app-view.content {
+    padding: 8px 0 76px;
+  }
+
+  body.discover-open .tabs {
+    position: fixed;
+    inset: auto 0 0;
+    margin: 0;
+  }
+
+  body.discover-open #discover-view > .heading {
+    margin-bottom: 8px;
+  }
+
+  body.discover-open #discover-view > .heading h1 {
+    font-size: 25px;
+  }
+
+  body.discover-open #discover-view > .heading p {
+    margin-top: 3px;
+    font-size: 12px;
+  }
+
+  body.discover-open #actions {
+    margin-top: 8px;
+  }
+
+  body.discover-open #actions button {
+    width: 52px;
+    height: 52px;
+  }
+
+  body.discover-open .hint {
+    margin-top: 4px;
+  }
+}
+
 .delete-account button:disabled {
   cursor: wait;
   opacity: 0.65;
