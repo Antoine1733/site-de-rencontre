@@ -809,31 +809,23 @@ body.matches-open #conversation {
   }
 }
 
-.global-loading[hidden],
+.view-spinner[hidden],
 .signup-progress[hidden] {
   display: none;
 }
 
-.global-loading {
-  position: fixed;
-  z-index: 1200;
-  top: max(10px, env(safe-area-inset-top));
-  left: 50%;
-  display: grid;
-  width: min(280px, calc(100% - 32px));
-  gap: 7px;
-  padding: 10px 14px;
-  transform: translateX(-50%);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-  box-shadow: 0 8px 26px #39241a20;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
+.view-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-left: 12px;
+  border: 2px solid #eadbd2;
+  border-top-color: var(--rose);
+  border-radius: 50%;
+  animation: conversation-spin .8s linear infinite;
 }
 
-.global-loading-track,
 .signup-progress-track {
   display: block;
   height: 4px;
@@ -842,7 +834,6 @@ body.matches-open #conversation {
   background: #eadfd9;
 }
 
-.global-loading-track > span,
 .signup-progress-track > span {
   display: block;
   width: 38%;
@@ -872,9 +863,12 @@ body.matches-open #conversation {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .global-loading-track > span,
-  .signup-progress-track > span {
+    .signup-progress-track > span {
     width: 100%;
     animation: none;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-spinner { animation: none; }
 }
