@@ -570,6 +570,10 @@ body.matches-open #messages-view > .heading {
 }
 
 body.matches-open #messages-view > .matches {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
   min-height: 0;
   max-height: none;
   flex: 1;
@@ -580,6 +584,10 @@ body.matches-open #messages-view > .matches {
   border-radius: 20px;
   background: #fffdfa9c;
   padding: 12px;
+}
+
+body.matches-open #matches > .match {
+  flex: 0 0 auto;
 }
 
 body.matches-open #conversation {
