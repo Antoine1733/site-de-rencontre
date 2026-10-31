@@ -2,6 +2,46 @@
   touch-action: manipulation;
 }
 
+.like-profile-photo {
+  display: block;
+  width: 78px;
+  height: 84px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: #eee7e1;
+}
+
+.like-profile-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.like-profile-link {
+  min-height: 36px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--rose-dark);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.like-profile-photo:focus-visible,
+.like-profile-link:focus-visible {
+  outline: 2px solid var(--rose);
+  outline-offset: 3px;
+}
+
+#likes-list article > div {
+  overflow-wrap: anywhere;
+}
+
 body.chat-open {
   overflow: hidden;
 }
