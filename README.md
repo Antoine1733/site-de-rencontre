@@ -50,12 +50,29 @@ Pour activer les notifications, ajoute aussi `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_
 
 `api/index.py` expose l'application Flask à Vercel. `python app.py` reste la commande pour la lancer en local.
 
-La connexion actuelle identifie un profil par son adresse e-mail, comme dans le code fourni ; l'adresse n'est pas vérifiée.
+La connexion exige désormais un e-mail et un mot de passe (12 à 128 caractères à l’inscription). Seule l’empreinte scrypt salée est conservée dans PostgreSQL. L’adresse e-mail n’est pas vérifiée. Après 5 essais incorrects, le compte est bloqué pendant 5 minutes. Les anciennes sessions sans authentification par mot de passe ne sont plus acceptées par cette version.
 
-Depuis **Profil > Supprimer mon compte**, tu peux supprimer ton profil après confirmation. Les likes, matchs, conversations, messages et abonnements aux notifications liés au compte sont supprimés automatiquement. La confirmation par e-mail évite une suppression accidentelle, mais ne vérifie pas l'identité : la connexion actuelle n'exige pas de mot de passe et ne vérifie pas l'adresse.
+Depuis **Profil > Supprimer mon compte**, tu peux supprimer ton profil après confirmation. Les likes, matchs, conversations, messages et abonnements aux notifications liés au compte sont supprimés automatiquement. La saisie de l’adresse e-mail confirme la suppression dans une session authentifiée ; elle ne vérifie pas la possession de la boîte mail.
 
 ## Notifications sur téléphone
 
 Sur ordinateur et Android, connecte-toi puis va dans **Profil > Notifications sur ce téléphone > Activer les notifications** et accepte la demande. Sur iPhone/iPad, ajoute d'abord Rencontres à l'écran d'accueil depuis Safari, ouvre l'app depuis son icône, puis active les notifications depuis le profil.
 
 Les notifications de message affichent le nom de la personne et un aperçu du message (500 caractères maximum). Un clic ouvre la conversation après connexion. Une notification est envoyée pour chaque nouveau like ; un clic ouvre l'onglet des likes reçus. Un match réciproque déclenche la notification de match habituelle. Pour tester les notifications en local, ouvre le site sur `http://localhost:8000` et configure les trois variables VAPID dans `.env`.
+
+
+## Mots de passe des comptes existants
+
+Avant de déployer cette version, exécute localement :
+
+```powershell
+python generate_temporary_passwords.py
+```
+
+Le script initialise les colonnes nécessaires puis attribue un mot de passe aléatoire uniquement aux profils sans empreinte. Il conserve les profils, likes, matchs et messages. Une nouvelle exécution ne remplace pas les mots de passe déjà attribués.
+
+Le chemin du fichier JSON est affiché à la fin. Le dossier `private_credentials/` est exclu de Git. Chaque entrée contient l’adresse e-mail et le mot de passe temporaire à transmettre individuellement à la bonne personne. Supprime le fichier après distribution ; il contient les mots de passe en clair, contrairement à la base. En cas d’échec du script, ne distribue pas un éventuel fichier partiel.
+
+À la première connexion, le membre fournit son mot de passe temporaire puis choisit un mot de passe personnel différent. Aucune session donnant accès au site n’est ouverte avant ce changement. Le mot de passe temporaire cesse alors de fonctionner. Aucun envoi automatique ni parcours de récupération par e-mail n’est configuré.
+
+L’exécution du script modifie Supabase, mais ne pousse pas le code et ne déploie pas le site. Le site en ligne exige les mots de passe seulement après déploiement de cette version.

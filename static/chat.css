@@ -795,6 +795,70 @@ body.matches-open #conversation {
   gap: 22px;
 }
 
+.password-settings {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+#change-password-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 20px;
+  border-radius: 12px;
+}
+
+#change-password-toggle[aria-expanded="true"] {
+  border-color: var(--rose);
+  color: var(--rose-dark);
+  background: var(--paper);
+}
+
+#password-form {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: 0 8px 28px #39241a08;
+}
+
+#password-form h2 {
+  margin: 0 0 18px;
+  font: 600 23px Georgia, serif;
+}
+
+#password-form > p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#password-status:empty {
+  display: none;
+}
+
+.password-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.password-help a {
+  color: var(--rose-dark);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  #password-form {
+    padding: 18px;
+  }
+}
+
 #profile-view > .push-settings {
   margin-top: 24px;
 }

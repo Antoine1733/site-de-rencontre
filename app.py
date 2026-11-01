@@ -16,6 +16,7 @@ from uuid import uuid4
 import psycopg2
 import psycopg2.extras
 import requests
+from werkzeug.security import check_password_hash, generate_password_hash
 from pywebpush import WebPushException, webpush
 from flask import Flask, g, has_app_context, jsonify, render_template_string, request, send_from_directory, session
 
@@ -117,6 +118,11 @@ def init_db() -> None:
             )
         """)
         db.execute("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT")
+        db.execute("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_hash TEXT")
+        db.execute("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_change_required BOOLEAN NOT NULL DEFAULT false")
+        db.execute("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 1")
+        db.execute("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS login_failures INTEGER NOT NULL DEFAULT 0")
+        db.execute("ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS login_locked_until DOUBLE PRECISION NOT NULL DEFAULT 0")
         db.execute("ALTER TABLE public.profiles ALTER COLUMN id SET DEFAULT gen_random_uuid()")
         db.execute("ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey")
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS profiles_email_idx ON public.profiles(email)")
@@ -363,10 +369,14 @@ def migrate_existing_photos() -> int:
 
 def current_user():
     email = session.get("email")
-    if not email:
+    if not email or not session.get("auth_version"):
         return None
     with get_db() as db:
-        return db.execute("SELECT id,email,first_name,age,bio,photo_paths FROM public.profiles WHERE email=%s", (email,)).fetchone()
+        return db.execute("SELECT id,email,first_name,age,bio,photo_paths FROM public.profiles WHERE email=%s AND auth_version=%s AND password_hash IS NOT NULL AND password_change_required=false", (email, session["auth_version"])).fetchone()
+
+
+def valid_password(password):
+    return isinstance(password, str) and 12 <= len(password) <= 128
 
 
 def require_user():
@@ -432,7 +442,7 @@ button,input,textarea{font:inherit}button{transition:transform .18s ease,backgro
 .swipe-profile-dialog .photo-hit{z-index:2}
 .swipe-profile-dialog .photo-hit button{pointer-events:auto}
 </style></head><body><main class="shell"><header class="top"><strong>Rencontres</strong><span id="account"></span><button id="top-logout" class="hide" type="button">Se déconnecter</button></header>
-<section id="signup" class="form"><aside class="auth-aside"><div class="auth-brand"><span>♡</span> RENCONTRES</div><div class="auth-copy"><h2>Un site de rencontre</h2></div></aside><div class="auth-main"><h1>Créer un profil</h1><p>Inscription réservée aux personnes de 18 ans et plus.</p><form id="signup-form"><div class="field"><label>Prénom</label><input name="first_name" maxlength="40" autocomplete="given-name" placeholder="Comment t’appelles-tu ?" required></div><div class="field"><label>Adresse e-mail</label><input name="email" type="email" autocomplete="email" placeholder="toi@exemple.fr" required></div><div class="field"><label>Âge</label><input name="age" type="number" min="18" max="100" placeholder="Ton âge" required></div><div class="field"><label>Description</label><textarea name="bio" rows="3" maxlength="500" placeholder="Quelques mots pour te présenter…" required></textarea></div><div class="field"><label>Photos <small>1 à 3 photos</small></label><input id="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple required><div class="preview" id="preview"></div></div><button class="primary">Créer mon profil <span aria-hidden="true">→</span></button></form></div></section>
+<section id="signup" class="form"><aside class="auth-aside"><div class="auth-brand"><span>♡</span> RENCONTRES</div><div class="auth-copy"><h2>Un site de rencontre</h2></div></aside><div class="auth-main"><h1>Créer un profil</h1><p>Inscription réservée aux personnes de 18 ans et plus.</p><form id="signup-form"><div class="field"><label>Prénom</label><input name="first_name" maxlength="40" autocomplete="given-name" placeholder="Comment t’appelles-tu ?" required></div><div class="field"><label>Adresse e-mail</label><input name="email" type="email" autocomplete="email" placeholder="toi@exemple.fr" required></div><div class="field"><label for="signup-password">Mot de passe</label><input id="signup-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="12 caractères minimum" required></div><div class="field"><label>Âge</label><input name="age" type="number" min="18" max="100" placeholder="Ton âge" required></div><div class="field"><label>Description</label><textarea name="bio" rows="3" maxlength="500" placeholder="Quelques mots pour te présenter…" required></textarea></div><div class="field"><label>Photos <small>1 à 3 photos</small></label><input id="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple required><div class="preview" id="preview"></div></div><button class="primary">Créer mon profil <span aria-hidden="true">→</span></button></form></div></section>
 <section id="app-view" class="content hide"><nav class="tabs"><button class="tab active" data-view="discover">Découvrir</button><button class="tab" data-view="messages">Matchs <span id="match-count"></span></button><button class="tab" data-view="profile">Profil</button></nav><div id="discover-view"><div class="heading"><div><h1>Profils</h1><p>Choisis les profils qui t'intéressent.</p></div><span id="profile-count"></span></div><div id="card-area"></div><div id="actions" class="actions"><button id="pass" aria-label="Passer">&#10005;</button><button id="like" class="like" aria-label="Aimer">&#9829;</button></div><p class="hint">Utilise les boutons pour aimer ou passer</p></div><div id="messages-view" class="hide"><div class="heading"><h1>Matchs</h1></div><div id="matches" class="matches"></div><div id="conversation"><p class="empty">Choisis un match.</p></div></div><div id="profile-view" class="hide"><div class="heading"><div><h1>Mon profil</h1><p>Consulte et mets à jour tes informations.</p></div></div><div id="my-profile"></div><section class="push-settings"><div><h2>Notifications sur ce téléphone</h2><p>Pour recevoir les notifications, ajoute Rencontres à l’écran d’accueil puis ouvre-le depuis son icône. Si l’option reste indisponible, cet appareil ne les prend pas en charge.</p></div><button id="push-toggle" type="button" disabled>Chargement…</button><p id="push-status" role="status" aria-live="polite">Vérification de la disponibilité…</p></section></div></section></main><div id="match-overlay" class="match-overlay" hidden aria-hidden="true"><section class="match-dialog" role="dialog" aria-modal="true" aria-labelledby="match-title" aria-describedby="match-caption" tabindex="-1"><button id="match-close" class="match-close" type="button" aria-label="Fermer">×</button><div class="match-avatars"><img id="match-self-avatar" class="match-avatar match-avatar-self" alt="Votre photo"><img id="match-avatar" class="match-avatar" alt=""><span class="match-heart-badge" aria-hidden="true">♥</span></div><p class="match-eyebrow">C’est réciproque</p><h2 id="match-title">Nouveau match&nbsp;!</h2><p id="match-caption" class="match-caption"></p><div class="match-dialog-actions"><button id="match-message" class="match-message-button" type="button">Envoyer un message</button><button id="match-continue" class="match-continue-button" type="button">Continuer à découvrir</button></div></section></div><div id="notice" class="notice hide"></div>
 <script>
 const $=q=>document.querySelector(q),s={user:null,profiles:[],matches:[],likes:[],active:null,photo:0,messages:[],messageLoad:0,poll:null,swiping:false};
@@ -479,6 +489,12 @@ $('#likes-list').onclick=async e=>{const preview=e.target.closest('[data-profile
 function renderProfile(){
 const p=s.user,photo=p.photo_paths?.[0];
 $('#my-profile').innerHTML=`<article class="profile-card"><div class="profile-summary"><img class="profile-avatar" src="${esc(photo||'')}" alt="Photo de ${esc(p.first_name)}"><div class="profile-identity"><h2>${esc(p.first_name)}, ${p.age} ans</h2><p>${esc(p.bio)}</p></div></div><div class="profile-private"><strong>Adresse e-mail</strong><span>${esc(p.email)}</span><span>· Privée</span></div></article><div class="profile-actions"><button id="view-own-profile" class="secondary-button" type="button">Voir mon profil</button><button id="edit-profile" class="profile-edit-toggle" type="button" aria-expanded="false" aria-controls="edit-form">Modifier mon profil</button></div><form id="edit-form" class="hide"><div class="edit-heading"><h2>Modifier mon profil</h2><p>Mets à jour tes informations. Tu peux conserver tes photos ou en choisir de nouvelles.</p></div><div class="field"><label for="edit-first-name">Prénom</label><input id="edit-first-name" name="first_name" maxlength="40" value="${esc(p.first_name)}" required></div><div class="field"><label for="edit-age">Âge</label><input id="edit-age" name="age" type="number" min="18" max="100" value="${p.age}" required></div><div class="field"><label for="edit-bio">Description</label><textarea id="edit-bio" name="bio" rows="3" maxlength="500" required>${esc(p.bio)}</textarea></div><div class="field"><label for="edit-photos">Photos <small>Facultatif · jusqu’à 3 photos, 8 Mo chacune</small></label><input id="edit-photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple></div><div class="edit-actions"><button id="cancel-edit" class="secondary-button" type="button">Annuler</button><button class="primary" type="submit">Enregistrer les modifications</button></div></form>`;
+$('#my-profile').insertAdjacentHTML('beforeend', `<section class="password-settings"><button id="change-password-toggle" class="secondary-button" type="button" aria-expanded="false" aria-controls="password-form">Changer de mot de passe</button><form id="password-form" class="hide"><h2>Changer de mot de passe</h2><div class="field"><label for="profile-current-password">Mot de passe actuel</label><input id="profile-current-password" name="current_password" type="password" autocomplete="current-password" maxlength="128" required></div><div class="field"><label for="profile-new-password">Nouveau mot de passe</label><input id="profile-new-password" name="new_password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required><small>Entre 12 et 128 caractères, différent du mot de passe actuel.</small></div><div class="field"><label for="profile-confirm-password">Confirmer le nouveau mot de passe</label><input id="profile-confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></div><p>Les autres sessions seront déconnectées après le changement.</p><p class="password-help">Mot de passe perdu ? Envoie un e-mail à <a href="mailto:antoinecroissant@yahoo.com">antoinecroissant@yahoo.com</a>.</p><p id="password-status" role="status" aria-live="polite"></p><div class="edit-actions"><button id="cancel-password-change" class="secondary-button" type="button">Annuler</button><button class="primary" type="submit">Enregistrer le mot de passe</button></div></form></section>`);
+const passwordForm=$('#password-form'),passwordToggle=$('#change-password-toggle');
+const closePasswordForm=()=>{passwordForm.reset();passwordForm.classList.add('hide');$('#password-status').textContent='';passwordToggle.setAttribute('aria-expanded','false');passwordToggle.focus()};
+passwordToggle.onclick=()=>{if(!passwordForm.classList.contains('hide')){closePasswordForm();return}passwordForm.classList.remove('hide');passwordToggle.setAttribute('aria-expanded','true');$('#profile-current-password').focus()};
+$('#cancel-password-change').onclick=closePasswordForm;
+$('#password-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]'),status=$('#password-status');if(button.disabled)return;status.textContent='';if(form.elements.new_password.value!==form.elements.confirm_password.value){status.textContent='Les nouveaux mots de passe ne correspondent pas.';form.elements.confirm_password.focus();return}button.disabled=true;button.textContent='Enregistrement…';try{await api('/api/password',{method:'PUT',body:JSON.stringify({current_password:form.elements.current_password.value,new_password:form.elements.new_password.value,confirm_password:form.elements.confirm_password.value})});closePasswordForm();note('Mot de passe modifié. Les autres sessions ont été déconnectées.')}catch(error){status.textContent=error.message}finally{button.disabled=false;button.textContent='Enregistrer le mot de passe'}};
 $('#push-toggle').onclick=togglePushSettings;loadPushSettings();
 if(!$('#delete-account-dialog'))$('#profile-view .push-settings').insertAdjacentHTML('afterend','<section class="delete-account"><div><h2>Supprimer mon compte</h2><p>Cette action est définitive. Ton profil, tes likes, tes matchs, tes conversations et tes notifications seront supprimés.</p></div><button id="delete-account" type="button">Supprimer mon compte</button></section><div id="delete-account-dialog" class="delete-account-overlay" hidden><section class="delete-account-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-account-title" aria-describedby="delete-account-warning"><span class="delete-account-icon" aria-hidden="true">!</span><p class="delete-account-eyebrow">Suppression définitive</p><h2 id="delete-account-title">Supprimer ton compte ?</h2><p id="delete-account-warning">Ton profil et toutes les données associées seront supprimés, y compris tes likes, matchs et conversations. Cette action est irréversible.</p><form id="delete-account-confirmation"><label for="delete-account-email">Pour confirmer, saisis l’adresse e-mail de ton compte</label><input id="delete-account-email" name="email" type="email" autocomplete="email" placeholder="toi@exemple.fr" required><p id="delete-account-error" class="delete-account-error" role="alert" hidden></p><div class="delete-account-actions"><button id="cancel-delete-account" class="secondary-button" type="button">Annuler</button><button id="confirm-delete-account" class="confirm-delete-account" type="submit">Supprimer définitivement</button></div></form></section></div>');
 const deleteDialog=$('#delete-account-dialog'),deleteEmail=$('#delete-account-email'),deleteError=$('#delete-account-error');
@@ -492,10 +508,10 @@ $('#edit-profile').onclick=()=>{const form=$('#edit-form'),opening=form.classLis
 $('#cancel-edit').onclick=renderProfile;
 $('#edit-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,files=[...form.photos.files],submit=form.querySelector('[type="submit"]');if(files.length>3||files.some(file=>file.size>8*1024*1024)){note('Choisis au maximum 3 photos de 8 Mo chacune.');return}submit.disabled=true;submit.textContent='Enregistrement…';let updated;try{const payload={first_name:form.first_name.value.trim(),age:Number(form.age.value),bio:form.bio.value.trim()};if(files.length)payload.photo_paths=await Promise.all(files.map(photoData));updated=await api('/api/profile',{method:'PUT',body:JSON.stringify(payload)})}catch(err){note(err.message);submit.disabled=false;submit.textContent='Enregistrer les modifications';return}s.user=updated;$('#account').textContent=updated.first_name;renderProfile();note('Profil mis à jour.');try{await loadProfiles()}catch(err){note(`Profil mis à jour, mais la liste des profils n’a pas pu être actualisée : ${err.message}`)}}
 }
-const signupForm=$('#signup-form'),signupProgress=document.createElement('div'),authSwitch=document.createElement('div'),loginForm=document.createElement('form');signupProgress.className='signup-progress';signupProgress.hidden=true;signupProgress.setAttribute('role','progressbar');signupProgress.setAttribute('aria-label','Création du compte');signupProgress.innerHTML='<span>Création du compte…</span><span class="signup-progress-track"><span></span></span>';signupForm.insertBefore(signupProgress,signupForm.querySelector('button[type="submit"],button:not([type])'));authSwitch.className='auth-switch';authSwitch.innerHTML='<button type="button" data-mode="signup" class="active">Créer un compte</button><button type="button" data-mode="login">Se connecter</button>';loginForm.id='login-form';loginForm.className='hide';loginForm.innerHTML='<div class="field"><label>Adresse e-mail</label><input name="email" type="email" required></div><button class="primary">Se connecter</button>';signupForm.parentNode.insertBefore(authSwitch,signupForm);signupForm.parentNode.append(loginForm);
+const signupForm=$('#signup-form'),signupProgress=document.createElement('div'),authSwitch=document.createElement('div'),loginForm=document.createElement('form');signupProgress.className='signup-progress';signupProgress.hidden=true;signupProgress.setAttribute('role','progressbar');signupProgress.setAttribute('aria-label','Création du compte');signupProgress.innerHTML='<span>Création du compte…</span><span class="signup-progress-track"><span></span></span>';signupForm.insertBefore(signupProgress,signupForm.querySelector('button[type="submit"],button:not([type])'));authSwitch.className='auth-switch';authSwitch.innerHTML='<button type="button" data-mode="signup" class="active">Créer un compte</button><button type="button" data-mode="login">Se connecter</button>';loginForm.id='login-form';loginForm.className='hide';loginForm.innerHTML='<div class="field"><label>Adresse e-mail</label><input name="email" type="email" required></div><div class="field"><label for="login-password">Mot de passe</label><input id="login-password" name="password" type="password" maxlength="128" autocomplete="current-password" required></div><div id="new-password-field" class="field hide"><label for="new-password">Choisis ton mot de passe personnel</label><input id="new-password" name="new_password" type="password" minlength="12" maxlength="128" autocomplete="new-password"><small>12 caractères minimum, différent du mot de passe temporaire.</small></div><p class="password-help">Mot de passe perdu ? Envoie un e-mail à <a href="mailto:antoinecroissant@yahoo.com">antoinecroissant@yahoo.com</a>.</p><button class="primary">Se connecter</button>';signupForm.parentNode.insertBefore(authSwitch,signupForm);signupForm.parentNode.append(loginForm);
 function authMode(mode){const creating=mode==='signup';signupForm.classList.toggle('hide',!creating);loginForm.classList.toggle('hide',creating);$('.auth-main h1').textContent=creating?'Créer un profil':'Se connecter';$('.auth-main > p').textContent=creating?'Inscription réservée aux personnes de 18 ans et plus.':'Entre l’adresse e-mail de ton compte.';authSwitch.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.mode===mode))}
-authSwitch.onclick=e=>{const button=e.target.closest('[data-mode]');if(button)authMode(button.dataset.mode)};loginForm.onsubmit=async e=>{e.preventDefault();try{const user=await api('/api/login',{method:'POST',body:JSON.stringify({email:loginForm.elements.email.value.trim()})});await enter(user)}catch(err){note(err.message)}};
-signupForm.onsubmit=async e=>{e.preventDefault();const f=e.currentTarget;if(f.dataset.submitting==='true')return;const files=[...$('#photos').files];if(files.length<1||files.length>3){note('Ajoute entre 1 et 3 photos.');return}if(files.some(x=>x.size>8*1024*1024)){note('Chaque photo doit faire 8 Mo maximum.');return}f.dataset.submitting='true';const submit=f.querySelector('button[type="submit"],button:not([type])');submit.disabled=true;submit.textContent='Création du compte…';signupProgress.hidden=false;try{const user=await api('/api/signup',{method:'POST',body:JSON.stringify({first_name:f.first_name.value.trim(),email:f.email.value.trim(),age:Number(f.age.value),bio:f.bio.value.trim(),photo_paths:await Promise.all(files.map(photoData))})});await enter(user)}catch(err){note(err.message)}finally{delete f.dataset.submitting;submit.disabled=false;submit.innerHTML='Créer mon profil <span aria-hidden="true">→</span>';signupProgress.hidden=true}};
+authSwitch.onclick=e=>{const button=e.target.closest('[data-mode]');if(button)authMode(button.dataset.mode)};loginForm.onsubmit=async e=>{e.preventDefault();try{const user=await api('/api/login',{method:'POST',body:JSON.stringify({email:loginForm.elements.email.value.trim(),password:loginForm.elements.password.value,...(!$('#new-password-field').classList.contains('hide')?{new_password:loginForm.elements.new_password.value}:{})})});if(user.password_change_required){$('#new-password-field').classList.remove('hide');loginForm.elements.new_password.required=true;loginForm.elements.new_password.focus();note('Choisis ton mot de passe personnel pour continuer.');return}loginForm.reset();await enter(user)}catch(err){note(err.message)}};
+signupForm.onsubmit=async e=>{e.preventDefault();const f=e.currentTarget;if(f.dataset.submitting==='true')return;const files=[...$('#photos').files];if(files.length<1||files.length>3){note('Ajoute entre 1 et 3 photos.');return}if(files.some(x=>x.size>8*1024*1024)){note('Chaque photo doit faire 8 Mo maximum.');return}f.dataset.submitting='true';const submit=f.querySelector('button[type="submit"],button:not([type])');submit.disabled=true;submit.textContent='Création du compte…';signupProgress.hidden=false;try{const user=await api('/api/signup',{method:'POST',body:JSON.stringify({first_name:f.first_name.value.trim(),email:f.email.value.trim(),password:f.password.value,age:Number(f.age.value),bio:f.bio.value.trim(),photo_paths:await Promise.all(files.map(photoData))})});await enter(user)}catch(err){note(err.message)}finally{delete f.dataset.submitting;submit.disabled=false;submit.innerHTML='Créer mon profil <span aria-hidden="true">→</span>';signupProgress.hidden=true}};
 $('#photos').onchange=async()=>{try{$('#preview').innerHTML=(await Promise.all([...$('#photos').files].slice(0,3).map(photoData))).map(x=>`<img src="${x}" alt="Aperçu">`).join('')}catch{note('Photo invalide.')}};document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>showView(x.dataset.view).catch(error=>note(error.message)));$('#pass').onclick=()=>swipe(false);$('#like').onclick=()=>swipe(true);$('#my-profile').onclick=e=>{if(e.target.closest('#view-own-profile'))openOwnProfilePreview()};$('#card-area').onclick=e=>{const step=e.target.closest('[data-step]');if(step){s.photo=(s.photo+Number(step.dataset.step)+s.profiles[0].photo_paths.length)%s.profiles[0].photo_paths.length;renderCard();return}};$('#matches').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openMatch(b.dataset.id)};$('#conversation').onclick=e=>{if(e.target.closest('#back-matches'))backToMatches();if(e.target.closest('#view-chat-profile'))openChatProfile()};chatProfileOverlay.onclick=e=>{if(e.target===chatProfileOverlay||e.target.closest('#close-chat-profile')||e.target.closest('#return-to-chat'))closeChatProfile();else if(e.target.closest('#chat-profile-prev'))updateChatProfilePhoto(-1);else if(e.target.closest('#chat-profile-next'))updateChatProfilePhoto(1)};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!chatProfileOverlay.hidden)closeChatProfile()});$('#conversation').onsubmit=e=>{if(e.target.id==='send-form')send(e)};const logout=async()=>{let pushError=null;try{const registration=navigator.serviceWorker?await navigator.serviceWorker.getRegistration('/'):null,subscription=registration?await registration.pushManager.getSubscription():null;if(subscription){await api('/api/push/subscription',{method:'DELETE',body:JSON.stringify({endpoint:subscription.endpoint})});await subscription.unsubscribe()}}catch(error){pushError=error}try{await api('/api/logout',{method:'POST'});if(pushError){note(`Session fermée, mais la désactivation des notifications a échoué : ${pushError.message}`);setTimeout(()=>location.reload(),1500)}else location.reload()}catch(error){note(error.message)}};$('#top-logout').onclick=logout;
 $('#match-close').onclick=closeMatchCelebration;$('#match-continue').onclick=closeMatchCelebration;$('#match-overlay').onclick=e=>{if(e.target===$('#match-overlay'))closeMatchCelebration()};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#match-overlay').hidden)closeMatchCelebration()});
 $('#match-message').onclick=async()=>{const matchId=$('#match-overlay').dataset.matchId;closeMatchCelebration();showView('messages',false);try{await loadMatches();if(s.matches.some(match=>match.id===matchId))await openMatch(matchId);else note('Ce match est enregistré, mais il est introuvable dans la liste des conversations.')}catch(err){note(err.message)}};
@@ -535,7 +551,8 @@ def me():
     if not session.get("email"):
         return jsonify(None)
     try:
-        return jsonify(as_json(require_user()))
+        user = current_user()
+        return jsonify(as_json(user) if user else None)
     except (RuntimeError, psycopg2.Error) as error:
         app.logger.exception("Profile lookup failed")
         return fail(error, 503)
@@ -544,6 +561,10 @@ def me():
 @app.post("/api/signup")
 def create_account():
     data = request.get_json(force=True)
+    password = data.get("password")
+    if not valid_password(password):
+        return fail(ValueError("Choisis un mot de passe de 12 à 128 caractères."))
+    password_hash = generate_password_hash(password, method="scrypt")
     name = str(data.get("first_name", "")).strip()
     email = str(data.get("email", "")).strip().lower()
     bio = str(data.get("bio", "")).strip()
@@ -564,12 +585,13 @@ def create_account():
         uploaded_paths = [upload_photo(photo, profile_id) for photo in photos]
         with get_db() as db:
             row = db.execute("""
-                INSERT INTO public.profiles(id,email,first_name,age,bio,photo_paths)
-                VALUES(%s,%s,%s,%s,%s,%s)
+                INSERT INTO public.profiles(id,email,first_name,age,bio,photo_paths,password_hash)
+                VALUES(%s,%s,%s,%s,%s,%s,%s)
                 RETURNING id,email,first_name,age,bio,photo_paths
-            """, (profile_id, email, name, age, bio, uploaded_paths)).fetchone()
+            """, (profile_id, email, name, age, bio, uploaded_paths, password_hash)).fetchone()
         session.clear()
         session["email"] = email
+        session["auth_version"] = 1
         session.permanent = True
         return jsonify(as_json(row))
     except psycopg2.errors.UniqueViolation:
@@ -630,24 +652,82 @@ def update_profile():
 
 @app.post("/api/login")
 def login():
-    email = str((request.get_json(force=True) or {}).get("email", "")).strip().lower()
+    data = request.get_json(force=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    password = data.get("password")
+    if not isinstance(password, str) or not 1 <= len(password) <= 128:
+        return fail(ValueError("Adresse e-mail ou mot de passe incorrect."), 401)
     if "@" not in email or len(email) > 254:
         return fail(ValueError("Adresse e-mail invalide."))
     try:
         with get_db() as db:
             row = db.execute(
-                "SELECT id,email,first_name,age,bio,photo_paths FROM public.profiles WHERE email=%s",
+                "SELECT id,email,first_name,age,bio,photo_paths,password_hash,password_change_required,auth_version,login_failures,login_locked_until FROM public.profiles WHERE email=%s FOR UPDATE",
                 (email,),
             ).fetchone()
-        if not row:
-            return fail(ValueError("Aucun compte avec cette adresse. Crée un profil."), 404)
+            if row and row["login_locked_until"] > time.time():
+                return fail(ValueError("Trop de tentatives. Réessaie dans 5 minutes."), 429)
+            if not row or not row["password_hash"] or not check_password_hash(row["password_hash"], password):
+                if row:
+                    failures = row["login_failures"] + 1
+                    db.execute("UPDATE public.profiles SET login_failures=%s, login_locked_until=%s WHERE id=%s",
+                               (0 if failures >= 5 else failures, time.time() + 300 if failures >= 5 else 0, row["id"]))
+                return fail(ValueError("Adresse e-mail ou mot de passe incorrect."), 401)
+            if row["password_change_required"]:
+                new_password = data.get("new_password")
+                if new_password is None:
+                    return jsonify({"password_change_required": True})
+                if not valid_password(new_password) or new_password == password:
+                    return fail(ValueError("Choisis un nouveau mot de passe différent, de 12 à 128 caractères."))
+                db.execute("UPDATE public.profiles SET password_hash=%s, password_change_required=false, auth_version=auth_version+1 WHERE id=%s",
+                           (generate_password_hash(new_password, method="scrypt"), row["id"]))
+                row["auth_version"] += 1
+            db.execute("UPDATE public.profiles SET login_failures=0, login_locked_until=0 WHERE id=%s", (row["id"],))
         session.clear()
         session["email"] = email
+        session["auth_version"] = row["auth_version"]
         session.permanent = True
-        return jsonify(as_json(row))
+        return jsonify(as_json({key: row[key] for key in ("id", "email", "first_name", "age", "bio", "photo_paths")}))
     except (RuntimeError, psycopg2.Error) as error:
         app.logger.exception("Login failed")
         return fail(error, 503)
+
+
+@app.put("/api/password")
+def change_password():
+    try:
+        user = require_user()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return fail(ValueError("Formulaire invalide."))
+        password = data.get("current_password")
+        new_password = data.get("new_password")
+        if not isinstance(password, str) or not 1 <= len(password) <= 128:
+            return fail(ValueError("Saisis ton mot de passe actuel."))
+        if not valid_password(new_password) or password == new_password:
+            return fail(ValueError("Choisis un nouveau mot de passe différent, de 12 à 128 caractères."))
+        if new_password != data.get("confirm_password"):
+            return fail(ValueError("Les nouveaux mots de passe ne correspondent pas."))
+        with get_db() as db:
+            row = db.execute("SELECT password_hash,auth_version,login_failures,login_locked_until FROM public.profiles WHERE id=%s FOR UPDATE", (user["id"],)).fetchone()
+            if not row or row["auth_version"] != session.get("auth_version"):
+                raise PermissionError("Reconnecte-toi pour continuer.")
+            if row["login_locked_until"] > time.time():
+                return fail(ValueError("Trop de tentatives. Réessaie dans 5 minutes."), 429)
+            if not check_password_hash(row["password_hash"], password):
+                failures = row["login_failures"] + 1
+                db.execute("UPDATE public.profiles SET login_failures=%s, login_locked_until=%s WHERE id=%s",
+                           (0 if failures >= 5 else failures, time.time() + 300 if failures >= 5 else 0, user["id"]))
+                return fail(ValueError("Le mot de passe actuel est incorrect."), 403)
+            db.execute("UPDATE public.profiles SET password_hash=%s, auth_version=auth_version+1, login_failures=0, login_locked_until=0 WHERE id=%s",
+                       (generate_password_hash(new_password, method="scrypt"), user["id"]))
+        session["auth_version"] = row["auth_version"] + 1
+        return jsonify({"ok": True})
+    except PermissionError as error:
+        return fail(error, 401)
+    except (RuntimeError, psycopg2.Error):
+        app.logger.exception("Password change failed")
+        return fail(ValueError("Impossible de modifier le mot de passe. Réessaie plus tard."), 503)
 
 
 @app.post("/api/logout")
