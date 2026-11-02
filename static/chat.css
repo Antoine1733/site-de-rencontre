@@ -1100,9 +1100,27 @@ body.matches-open #conversation {
   font-weight: 400;
 }
 
-.match.unread .match-name,
-.match.unread .match-last {
-  font-weight: 700;
+#matches .match.unread {
+  border-color: #c4776c;
+  background: #fff0eb;
+  box-shadow: inset 4px 0 0 #a94e49;
+}
+#matches .match.unread .match-name,
+#matches .match.unread .match-last {
+  font-weight: 800;
+  color: #30211d;
+}
+#matches .match .match-info { flex: 1; }
+#matches .match .match-last { font-size: 13px; }
+.unread-indicator { display: none; }
+.match.unread .unread-indicator {
+  display: block;
+  width: 11px;
+  height: 11px;
+  flex: none;
+  margin: 0 6px 0 10px;
+  border-radius: 50%;
+  background: #a94e49;
 }
 /* Like with a personal message: same palette, room for the text and actions. */
 #actions #like-message {
