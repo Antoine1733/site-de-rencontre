@@ -1093,3 +1093,94 @@ body.matches-open #conversation {
 @media (prefers-reduced-motion: reduce) {
   #card-area.is-loading::after { animation: none; }
 }
+
+/* Unread conversations become normal weight once opened. */
+.match .match-name,
+.match .match-last {
+  font-weight: 400;
+}
+
+.match.unread .match-name,
+.match.unread .match-last {
+  font-weight: 700;
+}
+/* Like with a personal message: same palette, room for the text and actions. */
+#actions #like-message {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rose-dark);
+  border: 1px solid #d8aaa0;
+  background: #f6e6df;
+}
+#actions #like-message:hover { background: #eed5cb; }
+#likes-list .like-card {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  gap: 14px;
+}
+#likes-list .like-card.has-message { border-color: #dbb4aa; }
+.like-person { min-width: 0; }
+.like-person strong { color: var(--ink); font-size: 15px; }
+#likes-list .like-person p {
+  margin: 6px 0;
+  color: var(--muted);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.like-note {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 16px;
+  border: 1px solid #eedbd2;
+  border-radius: 12px;
+  background: #fbf0e9;
+  min-width: 0;
+}
+#likes-list .like-note p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.like-card-actions { display: flex; gap: 8px; }
+#likes-list .like-reply { min-height: 42px; }
+.like-card.has-message .like-card-actions { grid-column: 1 / -1; justify-content: flex-end; }
+.like-message-dialog {
+  width: min(460px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid #e6d4ca;
+  border-radius: 22px;
+  background: #fffaf6;
+  color: var(--ink);
+  box-shadow: 0 24px 80px #39241a33;
+}
+.like-message-dialog::backdrop { background: #241b2399; backdrop-filter: blur(5px); }
+.like-message-dialog h2 { margin: 10px 0; font: 500 29px Georgia,serif; }
+.like-message-dialog p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.like-message-dialog label { display: block; margin: 20px 0 8px; font-size: 13px; font-weight: 600; }
+.like-message-dialog textarea {
+  display: block; width: 100%; box-sizing: border-box; min-height: 130px;
+  padding: 12px; resize: vertical; border: 1px solid #ddc8bd;
+  border-radius: 12px; background: white; color: var(--ink); font: inherit;
+}
+#like-message-counter { display: block; margin: 6px 0 18px; text-align: right; font-size: 11px; color: var(--muted); }
+.like-message-actions { display: flex; gap: 10px; }
+.like-message-actions button { min-height: 44px; padding: 10px 14px; border: 1px solid #e6d4ca; border-radius: 12px; background: white; color: var(--ink); font-weight: 600; }
+#submit-like-message { flex: 1; border-color: var(--rose); background: var(--rose); color: white; }
+#like-message-status:empty { display: none; }
+.like-message-dialog :focus-visible { outline: 2px solid var(--rose); outline-offset: 3px; }
+@media(max-width:600px) {
+  #likes-list .like-card { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
+  #likes-list .like-profile-photo { width: 64px; height: 80px; }
+  .like-card .like-card-actions { grid-column: 1 / -1; justify-content: stretch; }
+  #likes-list .like-card-actions .like-reply { flex: 1; }
+  .like-message-dialog { padding: 22px; }
+}

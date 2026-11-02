@@ -18,7 +18,7 @@ class MemoryDatabase:
                 bio TEXT, photo_paths TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE swipes (
-                actor_id TEXT, target_id TEXT, liked BOOLEAN,
+                actor_id TEXT, target_id TEXT, liked BOOLEAN, message TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(actor_id, target_id)
             );
@@ -49,6 +49,7 @@ class LikeReconsiderationTests(unittest.TestCase):
     def setUp(self):
         self.db = MemoryDatabase()
         self.addCleanup(self.db.connection.close)
+        self.db.execute("CREATE TABLE messages (match_id TEXT, sender_id TEXT, body TEXT, created_at TEXT)")
         self.actor = "alice"
         self.client = module.app.test_client()
         patches = [
